@@ -38,10 +38,10 @@ endif()
 #  a development snapshot and an even number indicates an official release.)
 set(DCMTK_MAJOR_VERSION 3)
 set(DCMTK_MINOR_VERSION 6)
-set(DCMTK_BUILD_VERSION 3)
+set(DCMTK_BUILD_VERSION 4)
 # The ABI is not guaranteed to be stable between different snapshots/releases,
 # so this particular version number is increased for each snapshot or release.
-set(DCMTK_ABI_VERSION 13)
+set(DCMTK_ABI_VERSION 14)
 
 # Package "release" settings (some are currently unused and, therefore, disabled)
 set(DCMTK_PACKAGE_NAME "dcmtk")
@@ -57,6 +57,19 @@ set(DCMTK_PACKAGE_VERSION_SUFFIX "+")
 # Shared library version information
 SET(DCMTK_LIBRARY_PROPERTIES VERSION "${DCMTK_ABI_VERSION}.${DCMTK_PACKAGE_VERSION}" SOVERSION "${DCMTK_ABI_VERSION}")
 
+# Gather information about the employed CMake version's behavior
+set(DCMTK_CMAKE_HAS_CXX_STANDARD FALSE)
+if(NOT CMAKE_MAJOR_VERSION LESS 3) # CMake versions prior to 3 don't understand VERSION_LESS etc.
+  if(NOT CMAKE_VERSION VERSION_LESS "3.1.3")
+    set(DCMTK_CMAKE_HAS_CXX_STANDARD TRUE)
+  endif()
+endif()
+define_property(GLOBAL PROPERTY DCMTK_CMAKE_HAS_CXX_STANDARD
+  BRIEF_DOCS "TRUE iff the CXX_STANDARD property exists."
+  FULL_DOCS "TRUE for CMake versions since 3.1.3 that evaluate the CXX_STANDARD property and CMAKE_CXX_STANDARD variable."
+)
+set_property(GLOBAL PROPERTY DCMTK_CMAKE_HAS_CXX_STANDARD ${DCMTK_CMAKE_HAS_CXX_STANDARD})
+
 # General build options and settings
 option(BUILD_APPS "Build command line applications and test programs." ON)
 option(BUILD_SHARED_LIBS "Build with shared libraries." OFF)
@@ -65,13 +78,6 @@ mark_as_advanced(BUILD_SINGLE_SHARED_LIBRARY)
 set(CMAKE_DEBUG_POSTFIX "" CACHE STRING "Library postfix for debug builds. Usually left blank.")
 # add our CMake modules to the module path, but prefer the ones from CMake.
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_ROOT}/Modules" "${CMAKE_CURRENT_SOURCE_DIR}/${DCMTK_CMAKE_INCLUDE}/CMake/")
-# newer CMake versions will warn if a module exists in its and the project's module paths, which is now always
-# the case since above line adds CMake's module path to the project's one. It, therefore, doesn't matter whether
-# we set the policy to OLD or NEW, since in both cases CMake's own module will be preferred. We just set
-# the policy to silence the warning.
-if(POLICY CMP0017)
-    cmake_policy(SET CMP0017 NEW)
-endif()
 if(BUILD_SINGLE_SHARED_LIBRARY)
   # When we are building a single shared lib, we are building shared libs :-)
   set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
@@ -89,6 +95,7 @@ option(DCMTK_WITH_ICU "Configure DCMTK with support for ICU." ON)
 if(NOT WIN32)
   option(DCMTK_WITH_WRAP "Configure DCMTK with support for WRAP." ON)
 endif()
+option(DCMTK_WITH_OPENJPEG "Configure DCMTK with support for OPENJPEG." ON)
 option(DCMTK_ENABLE_PRIVATE_TAGS "Configure DCMTK with support for DICOM private tags coming with DCMTK." OFF)
 option(DCMTK_WITH_THREADS "Configure DCMTK with support for multi-threading." ON)
 option(DCMTK_WITH_DOXYGEN "Build API documentation with DOXYGEN." ON)
@@ -96,7 +103,6 @@ option(DCMTK_GENERATE_DOXYGEN_TAGFILE "Generate a tag file with DOXYGEN." OFF)
 option(DCMTK_WIDE_CHAR_FILE_IO_FUNCTIONS "Build with wide char file I/O functions." OFF)
 option(DCMTK_WIDE_CHAR_MAIN_FUNCTION "Build command line tools with wide char main function." OFF)
 option(DCMTK_ENABLE_STL "Enable use of native STL classes and algorithms instead of DCMTK's own implementations." OFF)
-option(DCMTK_ENABLE_CXX11 "Enable use of native C++11 features (eg. move semantics)." OFF)
 
 macro(DCMTK_INFERABLE_OPTION OPTION DESCRIPTION)
   set("${OPTION}" INFERRED CACHE STRING "${DESCRIPTION}")
@@ -116,6 +122,7 @@ DCMTK_INFERABLE_OPTION(DCMTK_ENABLE_STL_STRING "Enable use of STL string.")
 DCMTK_INFERABLE_OPTION(DCMTK_ENABLE_STL_TYPE_TRAITS "Enable use of STL type traits.")
 DCMTK_INFERABLE_OPTION(DCMTK_ENABLE_STL_TUPLE "Enable use of STL tuple.")
 DCMTK_INFERABLE_OPTION(DCMTK_ENABLE_STL_SYSTEM_ERROR "Enable use of STL system_error.")
+DCMTK_INFERABLE_OPTION(DCMTK_ENABLE_CXX11 "Enable use of native C++11 features (eg. move semantics).")
 
 # Built-in (compiled-in) dictionary enabled on Windows per default, otherwise
 # disabled. Loading of external dictionary via run-time is, per default,
@@ -137,6 +144,8 @@ mark_as_advanced(CMAKE_DEBUG_POSTFIX)
 mark_as_advanced(FORCE EXECUTABLE_OUTPUT_PATH LIBRARY_OUTPUT_PATH)
 mark_as_advanced(SNDFILE_DIR DCMTK_WITH_SNDFILE) # not yet needed in public DCMTK
 mark_as_advanced(DCMTK_GENERATE_DOXYGEN_TAGFILE)
+mark_as_advanced(DCMTK_WITH_OPENJPEG) # only needed by DCMJP2K module
+
 if(NOT WIN32)
   # support for wide char file I/O functions is currently Windows-specific
   mark_as_advanced(DCMTK_WIDE_CHAR_FILE_IO_FUNCTIONS)
@@ -402,8 +411,28 @@ endif()
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
 
-# determine which flags are required to enable C++11 features (if any)
-if(NOT DEFINED DCMTK_CXX11_FLAGS)
+# handle CMAKE_CXX_STANDARD and related variables
+if(DCMTK_CMAKE_HAS_CXX_STANDARD)
+  if(NOT DEFINED CMAKE_CXX_STANDARD)
+    if(DCMTK_ENABLE_CXX11 AND NOT DCMTK_ENABLE_CXX11 STREQUAL "INFERRED")
+      set(CMAKE_CXX_STANDARD 11)
+    endif()
+  endif()
+  if(NOT DEFINED CMAKE_CXX_STANDARD OR CMAKE_CXX_STANDARD MATCHES "^9[0-9]?$")
+    set(DCMTK_MODERN_CXX_STANDARD FALSE)
+  else()
+    set(DCMTK_MODERN_CXX_STANDARD TRUE)
+  endif()
+  define_property(GLOBAL PROPERTY DCMTK_MODERN_CXX_STANDARD
+    BRIEF_DOCS "TRUE when compiling C++11 (or newer) code."
+    FULL_DOCS "TRUE when the compiler does support and is configured for C++11 or a later C++ standard."
+  )
+  set_property(GLOBAL PROPERTY DCMTK_MODERN_CXX_STANDARD ${DCMTK_MODERN_CXX_STANDARD})
+  if(DEFINED DCMTK_CXX11_FLAGS)
+    message(WARNING "Legacy variable DCMTK_CXX11_FLAGS will be ignored since CMake now sets the flags based on the CMAKE_CXX_STANDARD variable automatically.")
+  endif()
+elseif(NOT DEFINED DCMTK_CXX11_FLAGS)
+  # determine which flags are required to enable C++11 features (if any)
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
     set(DCMTK_CXX11_FLAGS "-std=c++11")
   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
@@ -418,6 +447,11 @@ if(NOT DEFINED DCMTK_CXX11_FLAGS)
   set(DCMTK_CXX11_FLAGS "${DCMTK_CXX11_FLAGS}" CACHE STRING "The flags to add to CMAKE_CXX_FLAGS for enabling C++11 (if any).")
   mark_as_advanced(DCMTK_CXX11_FLAGS)
 endif()
+define_property(GLOBAL PROPERTY DCMTK_MODERN_CXX_STANDARDS
+  BRIEF_DOCS "Modern C++ standards DCMTK knows about."
+  FULL_DOCS "The list of C++ standards since C++11 that DCMTK currently has configuration tests for. "
+)
+set_property(GLOBAL PROPERTY DCMTK_MODERN_CXX_STANDARDS 11 14 17)
 
 #-----------------------------------------------------------------------------
 # Third party libraries

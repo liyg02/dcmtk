@@ -225,11 +225,17 @@
 /* Define to 1 if you have the `getpwnam' function. */
 #cmakedefine HAVE_GETPWNAM @HAVE_GETPWNAM@
 
+/* Define to 1 if you have the `getrusage' function. */
+#cmakedefine HAVE_GETRUSAGE @HAVE_GETRUSAGE@
+
 /* Define to 1 if you have the `getsockname' function. */
 #cmakedefine HAVE_GETSOCKNAME @HAVE_GETSOCKNAME@
 
 /* Define to 1 if you have the `getsockopt' function. */
 #cmakedefine HAVE_GETSOCKOPT @HAVE_GETSOCKOPT@
+
+/* Define to 1 if you have the `gettimeofday' function. */
+#cmakedefine HAVE_GETTIMEOFDAY @HAVE_GETTIMEOFDAY@
 
 /* Define to 1 if you have the `getuid' function. */
 #cmakedefine HAVE_GETUID @HAVE_GETUID@
@@ -305,9 +311,6 @@
 
 /* Define to 1 if you have the `socket' library (-lsocket). */
 #cmakedefine HAVE_LIBSOCKET @HAVE_LIBSOCKET@
-
-/* Define if libtiff supports LZW compression */
-#define HAVE_LIBTIFF_LZW_COMPRESSION 1
 
 /* Define to 1 if you have the <limits.h> header file. */
 #cmakedefine HAVE_LIMITS_H @HAVE_LIMITS_H@
@@ -932,6 +935,9 @@
 /* Try to define the iconv behavior as conversion flags */
 #cmakedefine DCMTK_FIXED_ICONV_CONVERSION_FLAGS @DCMTK_FIXED_ICONV_CONVERSION_FLAGS@
 
+/* Define if iconv_open() accepts "" as an argument */
+#cmakedefine DCMTK_STDLIBC_ICONV_HAS_DEFAULT_ENCODING @DCMTK_STDLIBC_ICONV_HAS_DEFAULT_ENCODING@
+
 /* Define if we are compiling with libpng support */
 #cmakedefine WITH_LIBPNG
 
@@ -940,6 +946,9 @@
 
 /* Define if we are compiling with libxml support */
 #cmakedefine WITH_LIBXML
+
+/* Define if we are compiling with OpenJPEG support */
+#cmakedefine WITH_OPENJPEG
 
 /* Define if we are compiling with OpenSSL support */
 #cmakedefine WITH_OPENSSL
@@ -1118,6 +1127,22 @@ typedef unsigned long ulong;
 #if defined(HAVE_CXX11) && defined(__cplusplus) && __cplusplus < 201103L
 #error\
 DCMTK was configured to use C++11 features, but your compiler does not or was not configured to provide them.
+#endif
+
+/* Define if we can use C++14 */
+#cmakedefine HAVE_CXX14 @HAVE_CXX14@
+
+#if defined(HAVE_CXX14) && defined(__cplusplus) && __cplusplus < 201402L
+#error\
+DCMTK was configured to use C++14 features, but your compiler does not or was not configured to provide them.
+#endif
+
+/* Define if we can use C++17 */
+#cmakedefine HAVE_CXX17 @HAVE_CXX17@
+
+#if defined(HAVE_CXX17) && defined(__cplusplus) && __cplusplus < 201703L
+#error\
+DCMTK was configured to use C++17 features, but your compiler does not or was not configured to provide them.
 #endif
 
 /* Define if the compiler supports __alignof__ */

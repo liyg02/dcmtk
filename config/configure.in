@@ -1,5 +1,5 @@
 dnl Process this file with autoconf to produce a configure script.
-AC_INIT(dcmtk, 3.6.3, [bugs@dcmtk.org], [dcmtk-3.6.3], [http://www.dcmtk.org/])
+AC_INIT(dcmtk, 3.6.4, [bugs@dcmtk.org], [dcmtk-3.6.4], [http://www.dcmtk.org/])
 AC_PREREQ(2.60)
 AC_CONFIG_SRCDIR(Makefile.in)
 AC_CONFIG_HEADERS(include/dcmtk/config/osconfig.h)
@@ -10,7 +10,7 @@ dnl -------------------------------------------------------
 dnl Additional Package Information
 dnl -------------------------------------------------------
 
-PACKAGE_VERSION_NUMBER=363
+PACKAGE_VERSION_NUMBER=364
 PACKAGE_VERSION_SUFFIX="+"
 PACKAGE_DATE="DEV"
 
@@ -244,7 +244,7 @@ AC_FUNC_VPRINTF
 AC_TYPE_SIGNAL
 AC_FUNC_WAIT3
 AC_CHECK_FUNCS(gethostname gethostid socket sysinfo)
-AC_CHECK_FUNCS(strchr strstr strtoul itoa)
+AC_CHECK_FUNCS(strchr strstr strtoul itoa atoll)
 AC_CHECK_FUNCS(memcpy memset memmove memcmp bcopy bcmp)
 AC_CHECK_FUNCS(getpid mktemp tempnam tmpnam getenv mkstemp)
 AC_CHECK_FUNCS(stat)
@@ -257,6 +257,8 @@ AC_CHECK_FUNCS(listen connect setsockopt getsockopt select)
 AC_CHECK_FUNCS(gethostbyname gethostbyname_r)
 AC_CHECK_FUNCS(gethostbyaddr_r getgrnam_r getpwnam_r)
 AC_CHECK_FUNCS(bind accept getsockname getaddrinfo)
+AC_CHECK_FUNCS(getrusage)
+AC_CHECK_FUNCS(gettimeofday)
 AC_CHECK_FUNCS(waitpid)
 AC_CHECK_FUNCS(getuid geteuid setuid getpwnam getgrnam)
 AC_CHECK_FUNCS(sleep fork)
@@ -432,15 +434,17 @@ fi
 
 dnl Some newer versions of OpenSSL must be linked against libdl.
 dnl We just check whether libdl exists and in this case always
-dnl add -ldl to OPENSSLLIBS.
-dnl
+dnl add -ldl to OPENSSLLIBS. The same applies for OPENJPEG.
 OPENSSLLIBS=""
+OPENJPEGLIBS=""
 AC_CHECK_LIB(dl, main,[
 OPENSSLLIBS="-ldl"
+OPENJPEGLIBS="-ldl"
 ])
 if test $ac_cv_lib_dl_main = no ; then
 AC_CHECK_LIB(dl, dlopen,[
 OPENSSLLIBS="-ldl"
+OPENJPEGLIBS="-ldl"
 ])
 fi
 
@@ -1082,10 +1086,6 @@ AS_HELP_STRING([--without-libtiff], [don't include libtiff support])],
     AC_MSG_RESULT(yes)
     AC_DEFINE(WITH_LIBTIFF, , [Define if we are compiling with libtiff support.])
     TIFFLIBS="-ltiff $JPEGLIBS $ZLIBLIBS"
-    SAVELIBS="$LIBS"
-    LIBS="$LIBS -ltiff $JPEGLIBS $ZLIBLIBS"
-    AC_LIBTIFF_LZW_COMPRESSION
-    LIBS="$SAVELIBS"
     ;;
   *)
     AC_MSG_RESULT(no)
@@ -1097,7 +1097,6 @@ AS_HELP_STRING([--without-libtiff], [don't include libtiff support])],
     [ AC_MSG_RESULT(yes)
       AC_DEFINE(WITH_LIBTIFF, , [Define if we are compiling with libtiff support.])
       TIFFLIBS="-ltiff $JPEGLIBS $ZLIBLIBS"
-      AC_LIBTIFF_LZW_COMPRESSION
     ],
     [AC_MSG_RESULT(no)])
   LIBS="$SAVELIBS"] )
@@ -1232,6 +1231,36 @@ AS_HELP_STRING([--without-libwrap], [don't include libwrap support])],
     [ AC_MSG_RESULT(yes)
       AC_DEFINE(WITH_TCPWRAPPER, , [Define if we are compiling with libwrap (TCP wrapper) support.])
     TCPWRAPPERLIBS="-lwrap" ],
+    [AC_MSG_RESULT(no)])
+  LIBS="$SAVELIBS"] )
+
+
+dnl -------------------------------------------------------
+dnl Check for OpenJPEG support
+dnl -------------------------------------------------------
+
+AC_MY_OPENJPEG_PATH()
+
+AC_MSG_CHECKING(whether to include OpenJPEG support)
+AC_ARG_WITH(libwrap,
+[AS_HELP_STRING([--with-openjpeg], [include OpenJPEG support (default: auto)])
+AS_HELP_STRING([--without-openjpeg], [don't include OpenJPEG support])],
+[ case "$withval" in
+  yes)
+    AC_MSG_RESULT(yes)
+    AC_DEFINE(WITH_OPENJPEG, , [Define if we are compiling with OpenJPEG support.])
+    OPENJPEGLIBS="-lopenjp2 $OPENJPEGLIBS"
+    ;;
+  *)
+    AC_MSG_RESULT(no)
+    ;;
+  esac ],
+[ SAVELIBS="$LIBS"
+  LIBS="-lopenjp2 $OPENJPEGLIBS $LIBS"
+  AC_TRY_LINK([#include <openjpeg.h>], [(void) opj_version()],
+    [ AC_MSG_RESULT(yes)
+      AC_DEFINE(WITH_OPENJPEG, , [Define if we are compiling with OpenJPEG support.])
+    OPENJPEGLIBS="-lopenjp2 $OPENJPEGLIBS" ],
     [AC_MSG_RESULT(no)])
   LIBS="$SAVELIBS"] )
 
@@ -1424,6 +1453,18 @@ AC_RUN_IFELSE(
 )
 if test "$WITH_STDLIBC_ICONV" != "yes"; then
     LIBS="$SAVELIBS"
+fi
+
+if test "$WITH_STDLIBC_ICONV" == "yes"; then
+    AC_MSG_CHECKING([whether iconv_open() accepts "" as an argument])
+    AC_RUN_IFELSE(
+        [AC_LANG_SOURCE([[#include "tests/lciconv.cc"]])],
+        [
+            AC_DEFINE(DCMTK_STDLIBC_ICONV_HAS_DEFAULT_ENCODING, 1, [Define if iconv_open() accepts "" as an argument])
+            AC_MSG_RESULT(yes)
+        ],
+        [AC_MSG_RESULT(no)]
+    )
 fi
 
 AC_MSG_CHECKING(whether to enable character set conversion support)
@@ -1823,6 +1864,7 @@ AC_SUBST(XMLLIBS)
 AC_SUBST(TCPWRAPPERLIBS)
 AC_SUBST(SNDFILELIBS)
 AC_SUBST(ICONVLIBS)
+AC_SUBST(OPENJPEGLIBS)
 AC_SUBST(DEBUG)
 
 AC_OUTPUT(Makefile.def Makefile)

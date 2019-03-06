@@ -1,6 +1,6 @@
 /*
  *
- *  Copyright (C) 2003-2016, OFFIS e.V.
+ *  Copyright (C) 2003-2019, OFFIS e.V.
  *  All rights reserved.  See COPYRIGHT file for details.
  *
  *  This software and supporting documentation were developed by
@@ -103,7 +103,9 @@ class DCMTK_DCMSR_EXPORT DSRXMLDocument
      */
     OFBool encodingHandlerValid() const;
 
-    /** set the specified character encoding handler.
+    /** set character encoding handler for converting internally stored character strings
+     *  (UTF-8) to a particular character set.  This conversion is only done when requested,
+     *  e.g. when calling getStringFromAttribute() with the 'encoding' parameter being OFTrue.
      *  NB: 'libxml' relies on GNU 'libiconv' for most character sets.
      ** @param  charset  XML name of the character set (e.g. "ISO-8859-1" for ISO Latin-1)
      ** @return status, EC_Normal if successful, an error code otherwise
@@ -130,6 +132,19 @@ class DCMTK_DCMSR_EXPORT DSRXMLDocument
     DSRXMLCursor getNamedNode(const DSRXMLCursor &cursor,
                               const char *name,
                               const OFBool required = OFTrue) const;
+
+    /** get a particular named child node of the document.
+     *  Please note that the search process is limited to the first level below the current
+     *  one, i.e. no deep search is performed.
+     ** @param  cursor    cursor pointing to the parent of the node where to start from
+     *  @param  name      name of the node (XML element) to be searched for
+     *  @param  required  flag specifying whether the node is required or not.  If the node
+     *                    is required to be present an error message is reported.
+     ** @return cursor pointing to the named node if successful, invalid cursor otherwise
+     */
+    DSRXMLCursor getNamedChildNode(const DSRXMLCursor &cursor,
+                                   const char *name,
+                                   const OFBool required = OFTrue) const;
 
     /** check whether particular node matches a given name
      ** @param  cursor  cursor pointing to the particular node

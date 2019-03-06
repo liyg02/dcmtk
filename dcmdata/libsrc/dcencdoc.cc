@@ -21,24 +21,23 @@
 
 //make sure OS specific configuration is included first
 #include "dcmtk/config/osconfig.h"
-#include "dcmtk/dcmdata/cmdlnarg.h"
-#include "dcmtk/dcmdata/dccodec.h"
-//for tag constants
-#include "dcmtk/dcmdata/dcdeftag.h"
 #include "dcmtk/dcmdata/dcencdoc.h"
-//for dcmtk version name
+
+#include "dcmtk/ofstd/ofxml.h"
+#include "dcmtk/dcmdata/dcpath.h"
+#include "dcmtk/dcmdata/dccodec.h"
+#include "dcmtk/dcmdata/dcdeftag.h"
 #include "dcmtk/dcmdata/dcuid.h"
-#include "dcmtk/dcmiod/modequipment.h"
-#include "dcmtk/ofstd/ofdatime.h"
-#include "dcmtk/ofstd/ofstd.h"
-#include "dcmtk/ofstd/ofstdinc.h"
+#include "dcmtk/dcmdata/dcvrpobw.h"
+#include "dcmtk/dcmdata/dcvrui.h"
+#include "dcmtk/dcmdata/dcvrda.h"
+#include "dcmtk/dcmdata/dcvrtm.h"
 
 #define SHORTCOL 3
 #define LONGCOL 21
 
 // exit codes for this command line tool
-// (common codes are defined in "ofexit.h"
-// included from "ofconapp.h")
+// (common codes are defined in "ofexit.h" included from "ofconapp.h")
 
 // general errors
 #define EXITCODE_MEMORY_EXHAUSTED                4
@@ -138,12 +137,12 @@ OFString DcmEncapsulatedDocument::XMLgetAllAttributeValues(
   {
     //If the Attribute is mediaType, initialize with text/xml to exclude
     //the primary MIME Type of the encapsulated document
-    if (attr == "mediaType")attributeValues.append("text/xml");
+    if (attr == "mediaType") attributeValues.append("text/xml");
     while (!attributeValueslist.empty())
     {
       if (attributeValues.find(attributeValueslist.front()) == OFString_npos)
       {
-        if (!attributeValues.empty())attributeValues.append("\\");
+        if (!attributeValues.empty()) attributeValues.append("\\");
         attributeValues.append(attributeValueslist.front());
       }
       attributeValueslist.pop_front();
@@ -472,9 +471,6 @@ void DcmEncapsulatedDocument::addCDACommandlineOptions(OFCommandLine &cmd)
   cmd.addParam(     "dcmfile-out",                        "DICOM output filename");
   addGeneralOptions(cmd);
   addDocumentOptions(cmd);
-  cmd.addSubGroup("burned-in annotation:");
-      cmd.addOption("--annotation-yes",       "+an",      "CDA file (or an encapsulated document within)\ncontains patient identifying data (default)");
-      cmd.addOption("--annotation-no",        "-an",      "CDA file (or an encapsulated document within)\ndoes not contain patient identifying data");
   cmd.addSubGroup("override CDA data:");
       cmd.addOption("--no-override",          "-ov",      "CDA patient and document data must match study,\nseries or manually entered information (default)");
       cmd.addOption("--override",             "+ov",      "CDA's data will be overwritten by study, series\nor manually entered information");
@@ -490,9 +486,6 @@ void DcmEncapsulatedDocument::addPDFCommandlineOptions(OFCommandLine &cmd)
   cmd.addParam(     "dcmfile-out",                        "DICOM output filename");
   addGeneralOptions(cmd);
   addDocumentOptions(cmd);
-  cmd.addSubGroup("burned-in annotation:");
-      cmd.addOption("--annotation-yes",       "+an",      "PDF file (or an image within)\ncontains patient identifying data (default)");
-      cmd.addOption("--annotation-no",        "-an",      "PDF file (or an image within)\ndoes not contain patient identifying data");
   addOutputOptions(cmd);
 }
 
@@ -505,23 +498,19 @@ void DcmEncapsulatedDocument::addSTLCommandlineOptions(OFCommandLine &cmd)
   cmd.addParam(     "dcmfile-out",                        "DICOM output filename");
   addGeneralOptions(cmd);
   addDocumentOptions(cmd);
-  cmd.addSubGroup("burned-in annotation:");
-      cmd.addOption("--annotation-yes",       "+an",      "STL file contains patient identifying data (default)");
-      cmd.addOption("--annotation-no",        "-an",      "STL file does not contain patient identifying data");
-  addOutputOptions(cmd);
-  cmd.addGroup("Manufacturing 3D Model Measurement Units Options:");
-    cmd.addSubGroup("3D Model Measurement Units:");
-      cmd.addOption("--measurement-units",    "+mu",  3,  "[CSD] [CV] [CM]: string (default: empty)",
-                                                          "Coding scheme designator CSD (default: UCUM) code value CV (default: um)\nand code meaning CM(default: um)");
-  cmd.addGroup("Enhanced general equipment Options:");
-    cmd.addOption("--manufacturer",           "+mn",  1,  "[n]ame: string",
-                                                          "manufacturer's name in DICOM PN syntax");
-    cmd.addOption("--manufacturer-model-name","+mi",  1,  "[i]d: string",
-                                                          "manufacturer model name");
-    cmd.addOption("--device-serial-number",   "+ds",  1,  "[s]erial number: string",
+  cmd.addSubGroup("enhanced general equipment:");
+      cmd.addOption("--manufacturer",         "+mn",  1,  "[n]ame: string",
+                                                          "manufacturer's name");
+      cmd.addOption("--manufacturer-model",   "+mm",  1,  "[n]ame: string",
+                                                          "manufacturer's model name");
+      cmd.addOption("--device-serial",        "+ds",  1,  "[n]umber: string",
                                                           "device serial number");
-    cmd.addOption("--software-versions",      "+sv",  1,  "[v]ersions: string",
+      cmd.addOption("--software-versions",    "+sv",  1,  "[v]ersions: string",
                                                           "software versions");
+  cmd.addSubGroup("3d model measurement units:");
+      cmd.addOption("--measurement-units",    "+mu",  3,  "[CSD] [CV] [CM]: string (default: UCUM, um, um)",
+                                                          "measurement units defined by coding scheme\ndesignator CSD, code value CV, code meaning CM");
+  addOutputOptions(cmd);
 }
 
 void DcmEncapsulatedDocument::addGeneralOptions(OFCommandLine &cmd)
@@ -539,7 +528,7 @@ void DcmEncapsulatedDocument::addDocumentOptions(OFCommandLine &cmd)
       cmd.addOption("--title",                "+t",   1,  "[t]itle: string (default: empty)",
                                                           "document title");
       cmd.addOption("--concept-name",         "+cn",  3,  "[CSD] [CV] [CM]: string (default: empty)",
-                                                          "document title as concept name code sequence\nwith coding scheme designator CSD, code value CV\nand code meaning CM");
+                                                          "coded representation of document title defined\nby coding scheme designator CSD,\ncode value CV and code meaning CM");
     cmd.addSubGroup("patient data:");
       cmd.addOption("--patient-name",         "+pn",  1,  "[n]ame: string",
                                                           "patient's name in DICOM PN syntax");
@@ -550,15 +539,18 @@ void DcmEncapsulatedDocument::addDocumentOptions(OFCommandLine &cmd)
       cmd.addOption("--patient-sex",          "+ps",  1,  "[s]ex: string (M, F or O)",
                                                           "patient's sex");
     cmd.addSubGroup("study and series:");
-      cmd.addOption("--generate",             "+sg",      "generate new study and series UIDs (default)");
+      cmd.addOption("--generate",             "+sg",      "generate new study and\nseries UIDs (default)");
       cmd.addOption("--study-from",           "+st",  1,  "[f]ilename: string",
                                                           "read patient/study data from DICOM file");
       cmd.addOption("--series-from",          "+se",  1,  "[f]ilename: string",
                                                           "read patient/study/series data from DICOM file");
     cmd.addSubGroup("instance number:");
-      cmd.addOption("--instance-one",         "+i1",      "use instance number 1 (default, not with +se)");
+      cmd.addOption("--instance-one",         "+i1",      "use instance number 1\n(default, not with +se)");
       cmd.addOption("--instance-inc",         "+ii",      "increment instance number (only with +se)");
       cmd.addOption("--instance-set",         "+is",  1,  "[i]nstance number: integer", "use instance number i");
+    cmd.addSubGroup("burned-in annotation:");
+      cmd.addOption("--annotation-yes",       "+an",      "document contains patient identifying data\n(default)");
+      cmd.addOption("--annotation-no",        "-an",      "document does not contain patient identif. data");
 }
 
 void DcmEncapsulatedDocument::addOutputOptions(OFCommandLine &cmd)
@@ -683,10 +675,10 @@ void DcmEncapsulatedDocument::parseArguments(
       app.checkValue(cmd.getValue(opt_measurementUnitsCV));
       app.checkValue(cmd.getValue(opt_measurementUnitsCM));
     }
-    if (cmd.findOption("--manufacturer"))app.checkValue(cmd.getValue(opt_manufacturer));
-    if (cmd.findOption("--manufacturer-model-name"))app.checkValue(cmd.getValue(opt_manufacturerModelName));
-    if (cmd.findOption("--device-serial-number"))app.checkValue(cmd.getValue(opt_deviceSerialNumber));
-    if (cmd.findOption("--software-versions"))app.checkValue(cmd.getValue(opt_softwareVersions));
+    if (cmd.findOption("--manufacturer")) app.checkValue(cmd.getValue(opt_manufacturer));
+    if (cmd.findOption("--manufacturer-model")) app.checkValue(cmd.getValue(opt_manufacturerModelName));
+    if (cmd.findOption("--device-serial")) app.checkValue(cmd.getValue(opt_deviceSerialNumber));
+    if (cmd.findOption("--software-versions")) app.checkValue(cmd.getValue(opt_softwareVersions));
   }
   cmd.beginOptionBlock();
   if (cmd.findOption("--write-xfer-little")) opt_oxfer = EXS_LittleEndianExplicit;
@@ -859,10 +851,10 @@ OFCondition DcmEncapsulatedDocument::createIdentifiers(OFLogger& appLogger)
           {
             opt_softwareVersions = c;
           }
-          OFLOG_TRACE(appLogger, "reading Manufacturing 3D Model info");
+          OFLOG_TRACE(appLogger, "reading manufacturing 3d model info");
           {
 
-            OFLOG_TRACE(appLogger, "Manufacturing 3D Model info read successfully");
+            OFLOG_TRACE(appLogger, "manufacturing 3d model info read successfully");
           }
         }
       }
@@ -993,11 +985,11 @@ int DcmEncapsulatedDocument::insertEncapsulatedDocument(
         // ASCII STL format.
         if (0 == strncmp("solid ", buf, 6))
         {
-          OFLOG_DEBUG(appLogger, "File " << opt_ifname
+          OFLOG_ERROR(appLogger, "File " << opt_ifname
             << " starts with 'solid '. "
-            << "Assuming valid STL file "
-            << "in ASCII Code");
-          //TODO: check if last line starts with "endsolid"
+            << "It is a valid STL file but it is in ASCII Code"
+            << "and DICOM only accepts binary STL");
+          return EXITCODE_INVALID_INPUT_FILE;
         }
         //////STL validation for Binary Format
         else

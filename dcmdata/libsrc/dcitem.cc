@@ -1,6 +1,6 @@
 /*
  *
- *  Copyright (C) 1994-2018, OFFIS e.V.
+ *  Copyright (C) 1994-2019, OFFIS e.V.
  *  All rights reserved.  See COPYRIGHT file for details.
  *
  *  This software and supporting documentation were developed by
@@ -3208,6 +3208,13 @@ OFCondition DcmItem::putAndInsertString(const DcmTag& tag,
             /* Unknown VR, e.g. tag not found in data dictionary */
             status = EC_UnknownVR;
             break;
+        case EVR_SV:
+        case EVR_UV:
+        case EVR_OV:
+            // TODO: requires new VR classes
+            DCMDATA_ERROR("DcmItem: Support for new VR=" << tag.getVRName() << " not yet implemented");
+            status = EC_NotYetImplemented;
+            break;
         default:
             status = EC_IllegalCall;
             break;
@@ -3966,6 +3973,13 @@ OFCondition DcmItem::insertEmptyElement(const DcmTag& tag,
             /* Unknown VR, e.g. tag not found in data dictionary */
             status = EC_UnknownVR;
             break;
+        case EVR_SV:
+        case EVR_UV:
+        case EVR_OV:
+            // TODO: requires new VR classes
+            DCMDATA_ERROR("DcmItem: Support for new VR=" << tag.getVRName() << " not yet implemented");
+            status = EC_NotYetImplemented;
+            break;
         default:
             status = EC_IllegalCall;
             break;
@@ -4316,8 +4330,8 @@ OFCondition DcmItem::newDicomElement(DcmElement *&newElement,
         }
 
         /* update VR for tag, set "readAsUN" flag that makes sure the element value
-        * is read in Little Endian Implicit VR (i.e. the UN encoding)
-        */
+         * is read in Little Endian Implicit VR (i.e. the UN encoding)
+         */
         if (newTag.getEVR() != EVR_UNKNOWN)
         {
             tag.setVR(newTag.getVR());
@@ -4411,6 +4425,14 @@ OFCondition DcmItem::newDicomElement(DcmElement *&newElement,
             break;
         case EVR_OL :
             newElement = new DcmOtherLong(tag, length);
+            break;
+        case EVR_SV :
+        case EVR_UV :
+        case EVR_OV :
+            // TODO: requires new VR classes; also need to add support for OV with undefined length
+            DCMDATA_WARN("DcmItem: Support for new VR=" << tag.getVRName() << " not yet implemented, treating as UN/OB");
+            // until dedicated support is available, treat as OB
+            newElement = new DcmOtherByteOtherWord(tag, length);
             break;
         case EVR_FL :
             newElement = new DcmFloatingPointSingle(tag, length);

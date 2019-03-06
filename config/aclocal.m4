@@ -1404,60 +1404,6 @@ if test "$ac_cv_cxx_static_assert" = yes; then
 fi
 ])
 
-dnl AC_LIBTIFF_LZW_COMPRESSION checks if libtiff supports LZW compression.
-
-AC_DEFUN([AC_LIBTIFF_LZW_COMPRESSION],
-[AH_TEMPLATE([HAVE_LIBTIFF_LZW_COMPRESSION], [Define if libtiff supports LZW compression])
-AC_CACHE_CHECK(whether libtiff supports LZW compression,
-ac_cv_libtiff_lzw_compression,
-[AC_TRY_RUN(
-changequote({{, }})dnl
-{{
-extern "C" {
-#include <tiffio.h>
-}
-
-int main()
-{
-  const char *data[256];
-  for (int j=0; j<256; ++j) data[j]= 0;
-
-  int OK = 1;
-  TIFF *tif = TIFFOpen("lzwtest.tif", "w");
-  if (tif)
-  {
-    TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 16);
-    TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 16);
-    TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-    TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
-    TIFFSetField(tif, TIFFTAG_COMPRESSION, COMPRESSION_LZW);
-    TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
-    TIFFSetField(tif, TIFFTAG_FILLORDER, FILLORDER_MSB2LSB);
-    TIFFSetField(tif, TIFFTAG_DOCUMENTNAME, "unnamed");
-    TIFFSetField(tif, TIFFTAG_IMAGEDESCRIPTION, "test");
-    TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
-    TIFFSetField(tif, TIFFTAG_ROWSPERSTRIP, 512);
-    TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-
-    for (unsigned long i=0; (i < 16) && OK; i++)
-    {
-      if (TIFFWriteScanline(tif, data + (i << 4), i, 0) < 0) OK = 0;
-    }
-    TIFFFlushData(tif);
-    TIFFClose(tif);
-  }
-  if (OK) return 0; else return 10;
-}
-
-}}
-changequote([, ])dnl
- , ac_cv_libtiff_lzw_compression=yes, ac_cv_libtiff_lzw_compression=no, ac_cv_libtiff_lzw_compression=no)
-])
-if test "$ac_cv_libtiff_lzw_compression" = yes; then
-  AC_DEFINE(HAVE_LIBTIFF_LZW_COMPRESSION,, [Define if libtiff supports LZW compression])
-fi
-])
-
 
 dnl AC_CXX_LIBC_H_EXTERN_C checks if <libc.h> and <math.h> cause a problem if
 dnl   libc.h is included extern "C" and math.h is not. This is the case on QNX
@@ -1837,6 +1783,52 @@ AS_HELP_STRING([LONGOPTION=DIR], [location of LIBNAME includes and libraries]),
         fi
 
         CPPFLAGS="-I${withval}/include $CPPFLAGS"
+        LDFLAGS="-L${withval}/lib $LDFLAGS"
+        if test "x$dcmtk_cv_rpath_works" = "xyes"; then
+          LDFLAGS="-Wl,-rpath,${withval}/lib $LDFLAGS"
+        fi
+      ])
+    ])dnl
+  m4_popdef([OPTION])dnl
+  m4_popdef([LONGOPTION])dnl
+  m4_popdef([LIBNAME])dnl
+])
+
+dnl
+dnl This macro adds the option --with-openjpeginc to configure. If this option
+dnl is specified, include/ and lib/ are added to CPPFLAGS / LDFLAGS.
+dnl
+dnl AC_MY_OPENJPEG_PATH()
+AC_DEFUN([AC_MY_OPENJPEG_PATH],
+[
+  AC_REQUIRE([AC_MY_LIB_PATH_RPATH])dnl
+  m4_pushdef([OPTION], [openjpeginc])dnl
+  m4_pushdef([LONGOPTION], [--with-openjpeginc])dnl
+  m4_pushdef([LIBNAME], [m4_default([OpenJPEG], [openjpeg])])dnl
+  AC_ARG_WITH([OPTION], dnl
+dnl The following line is underquoted on purpose, else the help line will be
+dnl discarded because it is equal to an earlier help line.
+AS_HELP_STRING([LONGOPTION=DIR], [location of LIBNAME includes and libraries (MUST be specified, otherwise OpenJPEG will not be found)]),
+    [AS_CASE([$withval],
+      [yes|no], [
+        AC_MSG_WARN([LONGOPTION called without argument - will use default])
+      ],
+      [
+        if test ! -d ${withval}; then
+          AC_MSG_ERROR([called with LONGOPTION but LIBNAME base directory ${withval} does not exist or is not a directory.])
+        fi
+
+        dnl try to find openjpeg subdirectory within given include path
+        OPENJPEGINCLUDEPATH=`(
+          eval echo "${withval}/include/openjpeg*"
+        )`
+
+        dnl if not found, use include path following standard conventions
+        if test ! -d "${OPENJPEGINCLUDEPATH}"; then
+          OPENJPEGINCLUDEPATH="${withval}/include"
+        fi
+
+        CPPFLAGS="-I${OPENJPEGINCLUDEPATH} $CPPFLAGS"
         LDFLAGS="-L${withval}/lib $LDFLAGS"
         if test "x$dcmtk_cv_rpath_works" = "xyes"; then
           LDFLAGS="-Wl,-rpath,${withval}/lib $LDFLAGS"

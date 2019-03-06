@@ -63,6 +63,9 @@
 /* Define the DCMTK default path. */
 #undef DCMTK_PREFIX
 
+/* Define if iconv_open() accepts "" as an argument */
+#undef DCMTK_STDLIBC_ICONV_HAS_DEFAULT_ENCODING
+
 /* Define the default data dictionary path for the dcmdata library package. */
 #undef DCM_DICT_DEFAULT_PATH
 
@@ -102,6 +105,9 @@
 
 /* Define to 1 if you have the <assert.h> header file. */
 #undef HAVE_ASSERT_H
+
+/* Define to 1 if you have the `atoll' function. */
+#undef HAVE_ATOLL
 
 /* Define if __attribute__((aligned)) is available */
 #undef HAVE_ATTRIBUTE_ALIGNED
@@ -292,11 +298,17 @@
 /* Define to 1 if you have the `getpwnam_r' function. */
 #undef HAVE_GETPWNAM_R
 
+/* Define to 1 if you have the `getrusage' function. */
+#undef HAVE_GETRUSAGE
+
 /* Define to 1 if you have the `getsockname' function. */
 #undef HAVE_GETSOCKNAME
 
 /* Define to 1 if you have the `getsockopt' function. */
 #undef HAVE_GETSOCKOPT
+
+/* Define to 1 if you have the `gettimeofday' function. */
+#undef HAVE_GETTIMEOFDAY
 
 /* Define to 1 if you have the `getuid' function. */
 #undef HAVE_GETUID
@@ -384,9 +396,6 @@
 
 /* Define to 1 if you have the `socket' library (-lsocket). */
 #undef HAVE_LIBSOCKET
-
-/* Define if libtiff supports LZW compression */
-#undef HAVE_LIBTIFF_LZW_COMPRESSION
 
 /* Define to 1 if you have the <limits.h> header file. */
 #undef HAVE_LIMITS_H
@@ -1111,6 +1120,9 @@ typedef unsigned short ushort;
 
 /* Define if we are compiling with libxml support. */
 #undef WITH_LIBXML
+
+/* Define if we are compiling with OpenJPEG support. */
+#undef WITH_OPENJPEG
 
 /* Define if we are compiling with OpenSSL support. */
 #undef WITH_OPENSSL

@@ -1,6 +1,6 @@
 /*
  *
- *  Copyright (C) 2000-2017, OFFIS e.V.
+ *  Copyright (C) 2000-2019, OFFIS e.V.
  *  All rights reserved.  See COPYRIGHT file for details.
  *
  *  This software and supporting documentation were developed by
@@ -79,12 +79,16 @@ DSRDocument::DSRDocument(const E_DocumentType documentType)
     StudyDescription(DCM_StudyDescription),
     PatientName(DCM_PatientName),
     PatientID(DCM_PatientID),
+    IssuerOfPatientID(DCM_IssuerOfPatientID),
     PatientBirthDate(DCM_PatientBirthDate),
     PatientSex(DCM_PatientSex),
     Manufacturer(DCM_Manufacturer),
     ManufacturerModelName(DCM_ManufacturerModelName),
     DeviceSerialNumber(DCM_DeviceSerialNumber),
     SoftwareVersions(DCM_SoftwareVersions),
+    SynchronizationFrameOfReferenceUID(DCM_SynchronizationFrameOfReferenceUID),
+    SynchronizationTrigger(DCM_SynchronizationTrigger),
+    AcquisitionTimeSynchronized(DCM_AcquisitionTimeSynchronized),
     Modality(DCM_Modality),
     SeriesInstanceUID(DCM_SeriesInstanceUID),
     SeriesNumber(DCM_SeriesNumber),
@@ -147,12 +151,16 @@ void DSRDocument::clear()
     StudyDescription.clear();
     PatientName.clear();
     PatientID.clear();
+    IssuerOfPatientID.clear();
     PatientBirthDate.clear();
     PatientSex.clear();
     Manufacturer.clear();
     ManufacturerModelName.clear();
     DeviceSerialNumber.clear();
     SoftwareVersions.clear();
+    SynchronizationFrameOfReferenceUID.clear();
+    SynchronizationTrigger.clear();
+    AcquisitionTimeSynchronized.clear();
     Modality.clear();
     SeriesInstanceUID.clear();
     SeriesNumber.clear();
@@ -221,16 +229,21 @@ OFCondition DSRDocument::print(STD_NAMESPACE ostream &stream,
                     patientStr += getPrintStringFromElement(PatientSex, tmpString);
                 if (!PatientBirthDate.isEmpty())
                 {
-                   if (!patientStr.empty())
-                       patientStr += ", ";
-                   patientStr += dicomToReadableDate(getStringValueFromElement(PatientBirthDate, tmpString), string2);
+                    if (!patientStr.empty())
+                        patientStr += ", ";
+                    patientStr += dicomToReadableDate(getStringValueFromElement(PatientBirthDate, tmpString), string2);
                 }
                 if (!PatientID.isEmpty())
                 {
-                   if (!patientStr.empty())
-                       patientStr += ", ";
-                   patientStr += '#';
-                   patientStr += getPrintStringFromElement(PatientID, tmpString);
+                    if (!patientStr.empty())
+                        patientStr += ", ";
+                    patientStr += '#';
+                    patientStr += getPrintStringFromElement(PatientID, tmpString);
+                    if (!IssuerOfPatientID.isEmpty())
+                    {
+                        patientStr += ":";
+                        patientStr += getPrintStringFromElement(IssuerOfPatientID, tmpString);
+                    }
                 }
                 if (!patientStr.empty())
                     stream << " (" << patientStr << ")";
@@ -238,11 +251,11 @@ OFCondition DSRDocument::print(STD_NAMESPACE ostream &stream,
             }
             /* referring physician */
             if (!ReferringPhysicianName.isEmpty())
-             {
+            {
                 DCMSR_PRINT_HEADER_FIELD_START("Referring Physician", " : ")
                 stream << getPrintStringFromElement(ReferringPhysicianName, tmpString);
                 DCMSR_PRINT_HEADER_FIELD_END
-             }
+            }
             /* study-related information */
             if (!StudyDescription.isEmpty())
             {
@@ -278,10 +291,10 @@ OFCondition DSRDocument::print(STD_NAMESPACE ostream &stream,
                     deviceStr += getPrintStringFromElement(ManufacturerModelName, tmpString);
                 if (!DeviceSerialNumber.isEmpty())
                 {
-                   if (!deviceStr.empty())
-                       deviceStr += ", ";
-                   deviceStr += '#';
-                   deviceStr += getPrintStringFromElement(DeviceSerialNumber, tmpString);
+                    if (!deviceStr.empty())
+                        deviceStr += ", ";
+                    deviceStr += '#';
+                    deviceStr += getPrintStringFromElement(DeviceSerialNumber, tmpString);
                 }
                 if (!deviceStr.empty())
                     stream << " (" << deviceStr << ")";
@@ -483,6 +496,16 @@ OFCondition DSRDocument::read(DcmItem &dataset,
             getAndCheckElementFromDataset(dataset, SoftwareVersions, "1-n", "3", "GeneralEquipmentModule");
         }
 
+        // --- Synchronization Module ---
+        if (requiresSynchronizationModule(documentType) /* either the IOD requires this module */ ||
+            dataset.tagExistsWithValue(DCM_SynchronizationFrameOfReferenceUID) || dataset.tagExistsWithValue(DCM_SynchronizationTrigger) ||
+            dataset.tagExistsWithValue(DCM_AcquisitionTimeSynchronized) /* or all attributes should be absent */ )
+        {
+            getAndCheckElementFromDataset(dataset, SynchronizationFrameOfReferenceUID, "1", "1", "SynchronizationModule");
+            getAndCheckElementFromDataset(dataset, SynchronizationTrigger, "1", "1", "SynchronizationModule");
+            getAndCheckElementFromDataset(dataset, AcquisitionTimeSynchronized, "1", "1", "SynchronizationModule");
+        }
+
         // --- SR Document Series Module / Key Object Document Series Module ---
         getElementFromDataset(dataset, Modality);   /* already checked */
         if (documentType == DT_KeyObjectSelectionDocument)
@@ -586,6 +609,7 @@ OFCondition DSRDocument::readPatientData(DcmItem &dataset,
     // --- Patient Module ---
     getAndCheckElementFromDataset(dataset, PatientName, "1", "2", "PatientModule");
     getAndCheckElementFromDataset(dataset, PatientID, "1", "2", "PatientModule");
+    getAndCheckElementFromDataset(dataset, IssuerOfPatientID, "1", "3", "PatientModule");
     getAndCheckElementFromDataset(dataset, PatientBirthDate, "1", "2", "PatientModule");
     getAndCheckElementFromDataset(dataset, PatientSex, "1", "2", "PatientModule");
     /* always return success */
@@ -657,6 +681,7 @@ OFCondition DSRDocument::write(DcmItem &dataset,
         // --- Patient Module ---
         addElementToDataset(result, dataset, new DcmPersonName(PatientName), "1", "2", "PatientModule");
         addElementToDataset(result, dataset, new DcmLongString(PatientID), "1", "2", "PatientModule");
+        addElementToDataset(result, dataset, new DcmLongString(IssuerOfPatientID), "1", "3", "PatientModule");
         addElementToDataset(result, dataset, new DcmDate(PatientBirthDate), "1", "2", "PatientModule");
         addElementToDataset(result, dataset, new DcmCodeString(PatientSex), "1", "2", "PatientModule");
 
@@ -673,6 +698,15 @@ OFCondition DSRDocument::write(DcmItem &dataset,
             addElementToDataset(result, dataset, new DcmLongString(ManufacturerModelName), "1", "3", "GeneralEquipmentModule");
             addElementToDataset(result, dataset, new DcmLongString(DeviceSerialNumber), "1", "3", "GeneralEquipmentModule");
             addElementToDataset(result, dataset, new DcmLongString(SoftwareVersions), "1-n", "3", "GeneralEquipmentModule");
+        }
+
+        // --- Synchronization Module ---
+        if (requiresSynchronizationModule(getDocumentType()) /* module required for some IODs */ ||
+            !SynchronizationFrameOfReferenceUID.isEmpty() || !SynchronizationTrigger.isEmpty() || !AcquisitionTimeSynchronized.isEmpty())
+        {
+            addElementToDataset(result, dataset, new DcmUniqueIdentifier(SynchronizationFrameOfReferenceUID), "1", "1", "SynchronizationModule");
+            addElementToDataset(result, dataset, new DcmCodeString(SynchronizationTrigger), "1", "1", "SynchronizationModule");
+            addElementToDataset(result, dataset, new DcmCodeString(AcquisitionTimeSynchronized), "1", "1", "SynchronizationModule");
         }
 
         // --- SR Document Series Module / Key Object Document Series Module ---
@@ -828,10 +862,25 @@ OFCondition DSRDocument::readXMLDocumentHeader(DSRXMLDocument &doc,
                 if (doc.getStringFromNodeContent(cursor, tmpString) != documentTypeToModality(getDocumentType()))
                     DCMSR_WARN("Invalid value for 'modality' ... ignoring");
             }
+            else if (doc.matchNode(cursor, "device"))
+            {
+                doc.getElementFromNodeContent(doc.getNamedChildNode(cursor, "manufacturer", OFFalse /*required*/), Manufacturer, NULL, OFTrue /*encoding*/);
+                doc.getElementFromNodeContent(doc.getNamedChildNode(cursor, "model"), ManufacturerModelName, NULL, OFTrue /*encoding*/);
+                doc.getElementFromNodeContent(doc.getNamedChildNode(cursor, "serial", OFFalse /*required*/), DeviceSerialNumber, NULL, OFTrue /*encoding*/);
+                doc.getElementFromNodeContent(doc.getNamedChildNode(cursor, "version", OFFalse /*required*/), SoftwareVersions, NULL, OFTrue /*encoding*/);
+            }
+            else if (doc.matchNode(cursor, "manufacturer"))
+                doc.getElementFromNodeContent(cursor, Manufacturer, "manufacturer", OFTrue /*encoding*/);
+            else if (doc.matchNode(cursor, "synchronization"))
+            {
+                doc.getElementFromAttribute(cursor, SynchronizationFrameOfReferenceUID, "uid");
+                doc.getElementFromNodeContent(doc.getNamedChildNode(cursor, "trigger"), SynchronizationTrigger);
+                doc.getElementFromNodeContent(doc.getNamedChildNode(cursor, "acquisitiontime"), AcquisitionTimeSynchronized);
+            }
             else if (doc.matchNode(cursor, "referringphysician"))
             {
                 /* goto sub-element "name" */
-                const DSRXMLCursor childNode = doc.getNamedNode(cursor.getChild(), "name");
+                const DSRXMLCursor childNode = doc.getNamedChildNode(cursor, "name");
                 if (childNode.valid())
                 {
                     /* Referring Physician's Name */
@@ -877,14 +926,7 @@ OFCondition DSRDocument::readXMLDocumentHeader(DSRXMLDocument &doc,
             }
             else if (doc.matchNode(cursor, "document"))
                 result = readXMLDocumentData(doc, cursor.getChild(), flags);
-            else if (doc.matchNode(cursor, "device"))
-            {
-                doc.getElementFromNodeContent(doc.getNamedNode(cursor.getChild(), "manufacturer"), Manufacturer, NULL, OFTrue /*encoding*/);
-                doc.getElementFromNodeContent(doc.getNamedNode(cursor.getChild(), "model"), ManufacturerModelName, NULL, OFTrue /*encoding*/);
-                doc.getElementFromNodeContent(doc.getNamedNode(cursor.getChild(), "serial", OFFalse /*required*/), DeviceSerialNumber, NULL, OFTrue /*encoding*/);
-                doc.getElementFromNodeContent(doc.getNamedNode(cursor.getChild(), "version", OFFalse /*required*/), SoftwareVersions, NULL, OFTrue /*encoding*/);
-            }
-            else if (doc.getElementFromNodeContent(cursor, Manufacturer, "manufacturer", OFTrue /*encoding*/).bad())
+            else
                 doc.printUnexpectedNodeWarning(cursor);
             /* print node error message (if any) */
             doc.printGeneralNodeError(cursor, result);
@@ -918,10 +960,11 @@ OFCondition DSRDocument::readXMLPatientData(const DSRXMLDocument &doc,
             else if (doc.matchNode(cursor, "birthday"))
             {
                 /* Patient's Birth Date */
-                DSRDateTreeNode::getValueFromXMLNodeContent(doc, doc.getNamedNode(cursor.getChild(), "date"), tmpString);
+                DSRDateTreeNode::getValueFromXMLNodeContent(doc, doc.getNamedChildNode(cursor, "date"), tmpString);
                 PatientBirthDate.putOFStringArray(tmpString);
             }
             else if (doc.getElementFromNodeContent(cursor, PatientID, "id").bad() &&
+                     doc.getElementFromNodeContent(cursor, IssuerOfPatientID, "issuer").bad() &&
                      doc.getElementFromNodeContent(cursor, PatientSex, "sex").bad())
             {
                 doc.printUnexpectedNodeWarning(cursor);
@@ -959,7 +1002,7 @@ OFCondition DSRDocument::readXMLStudyData(const DSRXMLDocument &doc,
             if (doc.matchNode(cursor, "accession"))
             {
                 /* goto sub-element "number" */
-                doc.getElementFromNodeContent(doc.getNamedNode(cursor.getChild(), "number"), AccessionNumber);
+                doc.getElementFromNodeContent(doc.getNamedChildNode(cursor, "number"), AccessionNumber);
             }
             else if (doc.matchNode(cursor, "date"))
             {
@@ -1062,10 +1105,10 @@ OFCondition DSRDocument::readXMLInstanceData(const DSRXMLDocument &doc,
                 /* Instance Creator UID */
                 doc.getElementFromAttribute(cursor, InstanceCreatorUID, "uid", OFFalse /*encoding*/, OFFalse /*required*/);
                 /* Instance Creation Date */
-                DSRDateTreeNode::getValueFromXMLNodeContent(doc, doc.getNamedNode(cursor.getChild(), "date"), tmpString);
+                DSRDateTreeNode::getValueFromXMLNodeContent(doc, doc.getNamedChildNode(cursor, "date"), tmpString);
                 InstanceCreationDate.putOFStringArray(tmpString);
                 /* Instance Creation Time */
-                DSRTimeTreeNode::getValueFromXMLNodeContent(doc, doc.getNamedNode(cursor.getChild(), "time"), tmpString);
+                DSRTimeTreeNode::getValueFromXMLNodeContent(doc, doc.getNamedChildNode(cursor, "time"), tmpString);
                 InstanceCreationTime.putOFStringArray(tmpString);
             }
             else if (doc.getElementFromNodeContent(cursor, InstanceNumber, "number").bad())
@@ -1109,7 +1152,7 @@ OFCondition DSRDocument::readXMLDocumentData(const DSRXMLDocument &doc,
                 if (CompletionFlagEnum != CF_invalid)
                 {
                     /* Completion Flag Description (optional) */
-                    const DSRXMLCursor childCursor = doc.getNamedNode(cursor.getChild(), "description", OFFalse /*required*/);
+                    const DSRXMLCursor childCursor = doc.getNamedChildNode(cursor, "description", OFFalse /*required*/);
                     if (childCursor.valid())
                         doc.getElementFromNodeContent(childCursor, CompletionFlagDescription, NULL /*name*/, OFTrue /*encoding*/);
                 } else
@@ -1141,15 +1184,14 @@ OFCondition DSRDocument::readXMLDocumentData(const DSRXMLDocument &doc,
             }
             else if (doc.matchNode(cursor, "content"))
             {
-                const DSRXMLCursor childCursor = cursor.getChild();
                 /* Content Date */
-                DSRDateTreeNode::getValueFromXMLNodeContent(doc, doc.getNamedNode(childCursor, "date"), tmpString);
+                DSRDateTreeNode::getValueFromXMLNodeContent(doc, doc.getNamedChildNode(cursor, "date"), tmpString);
                 ContentDate.putOFStringArray(tmpString);
                 /* Content Time */
-                DSRTimeTreeNode::getValueFromXMLNodeContent(doc, doc.getNamedNode(childCursor, "time"), tmpString);
+                DSRTimeTreeNode::getValueFromXMLNodeContent(doc, doc.getNamedChildNode(cursor, "time"), tmpString);
                 ContentTime.putOFStringArray(tmpString);
                 /* proceed with document tree */
-                result = DocumentTree.readXML(doc, childCursor, flags);
+                result = DocumentTree.readXML(doc, cursor.getChild(), flags);
             } else
                 doc.printUnexpectedNodeWarning(cursor);
             /* print node error message (if any) */
@@ -1285,6 +1327,18 @@ OFCondition DSRDocument::writeXML(STD_NAMESPACE ostream &stream,
         } else
             writeStringFromElementToXML(stream, Manufacturer, "manufacturer", (flags & XF_writeEmptyTags) > 0);
 
+        if ((flags & XF_writeEmptyTags) || !SynchronizationFrameOfReferenceUID.isEmpty() ||
+            !SynchronizationTrigger.isEmpty() || !AcquisitionTimeSynchronized.isEmpty())
+        {
+            stream << "<synchronization";
+            if (!SynchronizationFrameOfReferenceUID.isEmpty())
+                stream << " uid=\"" << getMarkupStringFromElement(SynchronizationFrameOfReferenceUID, tmpString) << "\"";
+            stream << ">" << OFendl;
+            writeStringFromElementToXML(stream, SynchronizationTrigger, "trigger", (flags & XF_writeEmptyTags) > 0);
+            writeStringFromElementToXML(stream, AcquisitionTimeSynchronized, "acquisitiontime", (flags & XF_writeEmptyTags) > 0);
+            stream << "</synchronization>" << OFendl;
+        }
+
         if ((flags & XF_writeEmptyTags) || !ReferringPhysicianName.isEmpty())
         {
             stream << "<referringphysician>" << OFendl;
@@ -1294,6 +1348,7 @@ OFCondition DSRDocument::writeXML(STD_NAMESPACE ostream &stream,
 
         stream << "<patient>" << OFendl;
         writeStringFromElementToXML(stream, PatientID, "id", (flags & XF_writeEmptyTags) > 0);
+        writeStringFromElementToXML(stream, IssuerOfPatientID, "issuer", (flags & XF_writeEmptyTags) > 0);
         writeStringFromElementToXML(stream, PatientName, "name", (flags & XF_writeEmptyTags) > 0);
         if ((flags & XF_writeEmptyTags) || !PatientBirthDate.isEmpty())
         {
@@ -1468,17 +1523,22 @@ void DSRDocument::renderHTMLPatientData(STD_NAMESPACE ostream &stream,
     }
     if (!PatientBirthDate.isEmpty())
     {
-       if (!patientStr.empty())
-           patientStr += ", ";
-       patientStr += '*';
-       patientStr += dicomToReadableDate(getStringValueFromElement(PatientBirthDate, tmpString), string2);
+        if (!patientStr.empty())
+            patientStr += ", ";
+        patientStr += '*';
+        patientStr += dicomToReadableDate(getStringValueFromElement(PatientBirthDate, tmpString), string2);
     }
     if (!PatientID.isEmpty())
     {
-       if (!patientStr.empty())
-           patientStr += ", ";
-       patientStr += '#';
-       patientStr += convertToHTMLString(getStringValueFromElement(PatientID, tmpString), htmlString, flags);
+        if (!patientStr.empty())
+            patientStr += ", ";
+        patientStr += '#';
+        patientStr += convertToHTMLString(getStringValueFromElement(PatientID, tmpString), htmlString, flags);
+        if (!IssuerOfPatientID.isEmpty())
+        {
+            patientStr += ":";
+            patientStr += convertToHTMLString(getStringValueFromElement(IssuerOfPatientID, tmpString), htmlString, flags);
+        }
     }
     if (!patientStr.empty())
         stream << " (" << patientStr << ")";
@@ -2278,6 +2338,27 @@ OFCondition DSRDocument::getSoftwareVersions(OFString &value,
 }
 
 
+OFCondition DSRDocument::getSynchronizationFrameOfReferenceUID(OFString &value,
+                                                               const signed long pos) const
+{
+    return getStringValueFromElement(SynchronizationFrameOfReferenceUID, value, pos);
+}
+
+
+OFCondition DSRDocument::getSynchronizationTrigger(OFString &value,
+                                                   const signed long pos) const
+{
+    return getStringValueFromElement(SynchronizationTrigger, value, pos);
+}
+
+
+OFCondition DSRDocument::getAcquisitionTimeSynchronized(OFString &value,
+                                                        const signed long pos) const
+{
+    return getStringValueFromElement(AcquisitionTimeSynchronized, value, pos);
+}
+
+
 OFCondition DSRDocument::getStudyDate(OFString &value,
                                       const signed long pos) const
 {
@@ -2345,6 +2426,13 @@ OFCondition DSRDocument::getPatientID(OFString &value,
                                       const signed long pos) const
 {
     return getStringValueFromElement(PatientID, value, pos);
+}
+
+
+OFCondition DSRDocument::getIssuerOfPatientID(OFString &value,
+                                              const signed long pos) const
+{
+    return getStringValueFromElement(IssuerOfPatientID, value, pos);
 }
 
 
@@ -2524,6 +2612,36 @@ OFCondition DSRDocument::setSoftwareVersions(const OFString &value,
 }
 
 
+OFCondition DSRDocument::setSynchronizationFrameOfReferenceUID(const OFString &value,
+                                                               const OFBool check)
+{
+    OFCondition result = (check) ? DcmUniqueIdentifier::checkStringValue(value, "1") : EC_Normal;
+    if (result.good())
+        result = SynchronizationFrameOfReferenceUID.putOFStringArray(value);
+    return result;
+}
+
+
+OFCondition DSRDocument::setSynchronizationTrigger(const OFString &value,
+                                                   const OFBool check)
+{
+    OFCondition result = (check) ? DcmCodeString::checkStringValue(value, "1") : EC_Normal;
+    if (result.good())
+        result = SynchronizationTrigger.putOFStringArray(value);
+    return result;
+}
+
+
+OFCondition DSRDocument::setAcquisitionTimeSynchronized(const OFString &value,
+                                                        const OFBool check)
+{
+    OFCondition result = (check) ? DcmCodeString::checkStringValue(value, "1") : EC_Normal;
+    if (result.good())
+        result = AcquisitionTimeSynchronized.putOFStringArray(value);
+    return result;
+}
+
+
 OFCondition DSRDocument::setContentDate(const OFString &value,
                                         const OFBool check)
 {
@@ -2600,6 +2718,16 @@ OFCondition DSRDocument::setPatientID(const OFString &value,
     OFCondition result = (check) ? DcmLongString::checkStringValue(value, "1", getSpecificCharacterSet()) : EC_Normal;
     if (result.good())
         result = PatientID.putOFStringArray(value);
+    return result;
+}
+
+
+OFCondition DSRDocument::setIssuerOfPatientID(const OFString &value,
+                                              const OFBool check)
+{
+    OFCondition result = (check) ? DcmLongString::checkStringValue(value, "1", getSpecificCharacterSet()) : EC_Normal;
+    if (result.good())
+        result = IssuerOfPatientID.putOFStringArray(value);
     return result;
 }
 
